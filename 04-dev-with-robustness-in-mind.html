@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Testing Scenarios</title>
+	<style>
+		/* Base styles */
+		:root {
+			--color-border: #ccc;
+			--color-background: #fdfdfd;
+			--color-error: #dc2626;
+			--color-success: #059669;
+			--color-warning: #d97706;
+			--color-skeleton: #e5e7eb;
+			--animation-duration: 0.3s;
+		}
+
+		/* Card styles */
+		user-card {
+			display: block;
+			border: 1px solid var(--color-border);
+			border-radius: 6px;
+			padding: 1rem;
+			max-width: 300px;
+			margin: 1rem;
+			background-color: var(--color-background);
+			transition: all var(--animation-duration) ease;
+			position: relative;
+			overflow: hidden;
+		}
+
+		/* Status styles */
+		user-card[data-status="suspended"] {
+			opacity: 0.7;
+			background-color: #fff8f8;
+		}
+
+		user-card[data-status="active"] {
+			background-color: #f8fff8;
+		}
+
+		/* Loading state */
+		user-card[data-loading="true"] {
+			cursor: wait;
+		}
+
+		user-card[data-loading="true"]::before {
+			content: "";
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(90deg, 
+				transparent 0%, 
+				var(--color-skeleton) 50%, 
+				transparent 100%);
+			animation: shimmer 1.5s infinite;
+			border-radius: inherit;
+			width: 200%;
+			transform: translateX(-100%);
+		}
+
+		@keyframes shimmer {
+			0% { transform: translateX(-100%); }
+			100% { transform: translateX(0%); }
+		}
+
+		/* Error state */
+		user-card[data-error="true"] {
+			border-color: var(--color-error);
+			background-color: #fef2f2;
+		}
+
+		/* Content styles */
+		user-name,
+		user-email,
+		user-role {
+			display: block;
+			margin-bottom: 0.25rem;
+			min-height: 1.5em;
+		}
+
+		user-role::before {
+			content: "Role: ";
+			font-weight: bold;
+		}
+
+		user-name {
+			font-weight: bold;
+			font-size: 1.1rem;
+		}
+
+		/* Status indicators */
+		user-card[data-status="suspended"] user-role::after {
+			content: " (Suspended)";
+			color: var(--color-warning);
+		}
+
+		user-card[data-status="active"] user-role::after {
+			content: " (Active)";
+			color: var(--color-success);
+		}
+
+		/* Error styles */
+		.error {
+			color: var(--color-error);
+			font-style: italic;
+		}
+
+		/* Loading text */
+		.loading {
+			color: var(--color-skeleton);
+		}
+
+		/* Container */
+		#card-container {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+			gap: 1rem;
+			padding: 1rem;
+		}
+
+		/* Test controls */
+		.test-controls {
+			margin: 1rem;
+			padding: 1rem;
+			background: #f5f5f5;
+			border-radius: 6px;
+			display: flex;
+			gap: 1rem;
+			flex-wrap: wrap;
+		}
+
+		.test-controls button {
+			padding: 0.5rem 1rem;
+			border: 1px solid var(--color-border);
+			border-radius: 4px;
+			background: white;
+			cursor: pointer;
+			min-width: 120px;
+		}
+
+		.test-controls button:hover {
+			background: #f0f0f0;
+		}
+
+		.test-controls button.danger {
+			background: var(--color-error);
+			color: white;
+			border-color: var(--color-error);
+		}
+
+		.test-controls button.danger:hover {
+			opacity: 0.9;
+		}
+	</style>
+</head>
+<body>
+	<h1>User Card Test Scenarios</h1>
+	<p>This page shows the idea of mocking up a component and testing it in a variety of scenarios.  The goal here is to remind you of defensive thinking in preparation for building something (and being tested!).</p>
+	<div class="test-controls">
+		<button id="run_tests_btn">Run All Tests</button>
+		<button id="clear_tests_btn">Clear Tests</button>
+		<button id="runtime_error_btn" class="danger">Trigger Runtime Error</button>
+	</div>
+
+	<section id="card-container" role="region" aria-label="User Cards">
+		<noscript>
+			<p>Please enable JavaScript to see the demo.</p>
+		</noscript>
+	</section>
+
+	<template id="user-card-template">
+		<user-card data-loading="true" role="article">
+			<user-name class="loading">Loading name...</user-name>
+			<user-email class="loading">Loading email...</user-email>
+			<user-role class="loading">Loading role...</user-role>
+		</user-card>
+	</template>
+
+	<script type="module">
+		// Constants
+		const TIMEOUT_DURATION = 5000; // 5 seconds
+		const RETRY_ATTEMPTS = 3;
+
+		// State management
+		const cardStates = new Map();
+
+		// Event handling
+		window.addEventListener('DOMContentLoaded', () => {
+			initializeTestEnvironment();
+		});
+
+		function initializeTestEnvironment() {
+			document.getElementById('run_tests_btn').addEventListener('click', runAllTests);
+			document.getElementById('clear_tests_btn').addEventListener('click', clearTests);
+			document.getElementById('runtime_error_btn').addEventListener('click', simulateRuntimeError);
+			
+			// Initialize error tracking
+			window.addEventListener('error', handleGlobalError);
+		}
+
+		function clearTests() {
+			document.querySelector('#card-container').innerHTML = '';
+			cardStates.clear();
+		}
+
+		function runAllTests() {
+			clearTests();
+			
+			// Test instant load
+			const activeCard = createCard("Active User");
+			const suspendedCard = createCard("Suspended User");
+			
+			populateCard(activeCard, {
+				user_name: "Jane Smith",
+				user_email: "jane@example.org",
+				user_role: "Product Manager",
+				status: "active"
+			});
+
+			populateCard(suspendedCard, {
+				user_name: "Joe Example",
+				user_email: "joe@example.org",
+				user_role: "Engineer",
+				status: "suspended"
+			});
+
+			// Test delayed loads
+			[500, 1500, 3000].forEach(delay => {
+				const card = createCard(`Delayed (${delay}ms)`);
+				simulateNetworkDelay(card, delay);
+			});
+
+			// Test error case
+			const errorCard = createCard("Error Case");
+			simulateError(errorCard);
+
+			// Test timeout case
+			const timeoutCard = createCard("Timeout Case");
+			simulateTimeout(timeoutCard);
+		}
+
+		function createCard(title) {
+			const container = document.querySelector('#card-container');
+			const template = document.getElementById('user-card-template');
+			const clone = template.content.cloneNode(true);
+			const card = clone.querySelector('user-card');
+			
+			const wrapper = document.createElement('div');
+			wrapper.setAttribute('role', 'group');
+			wrapper.setAttribute('aria-label', title);
+			
+			const titleEl = document.createElement('h3');
+			titleEl.textContent = title;
+			
+			wrapper.appendChild(titleEl);
+			wrapper.appendChild(card);
+			container.appendChild(wrapper);
+
+			cardStates.set(card, {
+				attempts: 0,
+				timeout: null
+			});
+
+			return card;
+		}
+
+		function populateCard(card, data) {
+			const state = cardStates.get(card);
+			if (state.timeout) clearTimeout(state.timeout);
+
+			card.removeAttribute('data-loading');
+			card.removeAttribute('data-error');
+
+			const userName = card.querySelector('user-name');
+			const userEmail = card.querySelector('user-email');
+			const userRole = card.querySelector('user-role');
+
+			userName.textContent = data.user_name;
+			userEmail.textContent = data.user_email;
+			userRole.textContent = data.user_role;
+			card.dataset.status = data.status;
+
+			[userName, userEmail, userRole].forEach(el => {
+				el.classList.remove('loading');
+			});
+		}
+
+		function showError(card, message) {
+			const state = cardStates.get(card);
+			if (state.timeout) clearTimeout(state.timeout);
+
+			card.removeAttribute('data-loading');
+			card.setAttribute('data-error', 'true');
+
+			const elements = card.querySelectorAll('user-name, user-email, user-role');
+			elements.forEach(el => {
+				el.classList.add('error');
+				el.textContent = 'Error loading data';
+			});
+
+			if (state.attempts < RETRY_ATTEMPTS) {
+				const retryButton = document.createElement('button');
+				retryButton.className = 'retry-button';
+				retryButton.textContent = 'Retry';
+				retryButton.onclick = () => retryLoad(card);
+				card.appendChild(retryButton);
+			}
+
+			const errorMsg = document.createElement('div');
+			errorMsg.className = 'error';
+			errorMsg.textContent = message;
+			card.appendChild(errorMsg);
+		}
+
+		function simulateNetworkDelay(card, delay) {
+			const state = cardStates.get(card);
+			state.timeout = setTimeout(() => {
+				populateCard(card, {
+					user_name: "Delayed User",
+					user_email: "delayed@example.org",
+					user_role: "Test User",
+					status: "active"
+				});
+			}, delay);
+		}
+
+		function simulateError(card) {
+			const state = cardStates.get(card);
+			state.timeout = setTimeout(() => {
+				showError(card, "Failed to fetch user data: Network error");
+			}, 1000);
+		}
+
+		function simulateTimeout(card) {
+			const state = cardStates.get(card);
+			state.timeout = setTimeout(() => {
+				showError(card, "Request timed out after 5 seconds");
+			}, TIMEOUT_DURATION);
+		}
+
+		function retryLoad(card) {
+			const state = cardStates.get(card);
+			state.attempts++;
+			
+			card.removeAttribute('data-error');
+			card.setAttribute('data-loading', 'true');
+			
+			const elements = card.querySelectorAll('user-name, user-email, user-role');
+			elements.forEach(el => {
+				el.classList.remove('error');
+				el.classList.add('loading');
+				el.textContent = 'Loading...';
+			});
+
+			card.querySelectorAll('.retry-button, .error').forEach(el => el.remove());
+
+			setTimeout(() => {
+				if (Math.random() > 0.5) {
+					populateCard(card, {
+						user_name: "Retry Success",
+						user_email: "retry@example.org",
+						user_role: "Test User",
+						status: "active"
+					});
+				} else {
+					showError(card, `Retry attempt ${state.attempts} failed`);
+				}
+			}, 1000);
+		}
+
+		function simulateRuntimeError() {
+			throw new Error('Simulated runtime error for testing error handling');
+		}
+
+		function handleGlobalError(event) {
+			console.error('Global error handler - could send to error tracking service:', event.error);
+		}
+	</script>
+</body>
+</html>
